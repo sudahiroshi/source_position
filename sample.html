@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<script type="text/javascript" src="EventWrapper.js"></script>
+<script>
+(function() {
+
+    var onDOMContentLoaded = function() {
+
+        window.AudioContext = window.AudioContext || window.webkitAudioContext;
+
+        try {
+            // Create the instance of AudioContext
+            var context = new AudioContext();
+        } catch (error) {
+            window.alert(error.message + ' : Please use Chrome or Safari.');
+            return;
+        }
+
+        var displayProperties = function(node, tableid, caption) {
+            var html = '<caption>' + caption + '</caption>';
+
+            html += '<thead>';
+            html += '<tr>';
+            html += '<th scope="col">Property</th>';
+            html += '<th scope="col">Value</th>';
+            html += '<th scope="col">hasOwnProperty</th>';
+            html += '</tr>';
+            html += '</thead>';
+
+            html += '<tbody>';
+
+            for (var key in node) {
+                html += '<tr>';
+                html += '<td>' + key + '</td>';
+                html += '<td>' + node[key] + '</td>';
+                html += '<td>' + node.hasOwnProperty(key) + '</td>';
+                html += '</tr>';
+            }
+
+            html += '</tbody>';
+
+            document.getElementById(tableid).innerHTML = html;
+            document.getElementById(tableid).parentNode.previousElementSibling.style.display = 'block';
+        };
+
+        // Create the instance of OscillatorNode
+        var oscillator = context.createOscillator();
+
+        // Parameters for the instance of OscillatorNode
+        var type      = oscillator.type;
+        var frequency = oscillator.frequency.value;
+        var detune    = oscillator.detune.value;
+
+        // for legacy browsers
+        context.createGain = context.createGain || context.createGainNode;
+
+        // Create the instance of GainNode
+        var gain = context.createGain();
+
+        // Flag for starting or stopping sound
+        var isStop = true;
+
+        /*
+         * Event Listener
+         */
+
+        // Start or Stop sound
+        document.querySelector('button').addEventListener(EventWrapper.CLICK, function() {
+            if (isStop) {
+                // Create the instance of OscillatorNode
+                oscillator = context.createOscillator();
+
+                // for legacy browsers
+                oscillator.start = oscillator.start || oscillator.noteOn;
+                oscillator.stop  = oscillator.stop  || oscillator.noteOff;
+
+                // OscillatorNode (Input) -> GainNode (Volume) -> AudioDestinationNode (Output)
+                oscillator.connect(gain);
+                gain.connect(context.destination);
+
+                // Set parameters
+                oscillator.type            = type;
+                oscillator.frequency.value = frequency;
+                oscillator.detune.value    = detune;
+
+                // Start sound
+                oscillator.start(0);
+
+                isStop = false;
+                this.innerHTML = '<span class="icon-pause"></span>';
+
+                /*
+                 * Display properties
+                 */
+
+                displayProperties(oscillator,           'oscillatornode-properties',           'OscillatorNode');
+                displayProperties(oscillator.frequency, 'oscillatornode-frequency-properties', 'frequency (AudioParam) ');
+                displayProperties(oscillator.detune,    'oscillatornode-detune-properties',    'detune (AudioParam) ');
+            } else {
+                // Stop sound
+                oscillator.stop(0);
+
+                isStop = true;
+                this.innerHTML = '<span class="icon-start"></span>';
+            }
+        }, false);
+
+        // Control Volume
+        document.getElementById('range-volume').addEventListener('input', function() {
+            var min = gain.gain.minValue || 0;
+            var max = gain.gain.maxValue || 1;
+
+            if ((this.valueAsNumber >= min) && (this.valueAsNumber <= max)) {
+                gain.gain.value = this.valueAsNumber;
+                document.getElementById('output-volume').textContent = this.value;
+            }
+        }, false);
+
+        // Select type
+        document.getElementById('form-wave-type').addEventListener('change', function() {
+            for (var i = 0, len = this.elements['radio-wave-type'].length; i < len; i++) {
+                if (this.elements['radio-wave-type'][i].checked) {
+                    oscillator.type = type = (typeof oscillator.type === 'string') ? this.elements['radio-wave-type'][i].value : i;
+                    break;
+                }
+            }
+
+            displayProperties(oscillator, 'oscillatornode-properties', 'OscillatorNode');
+        }, false);
+
+        // Control frequency
+        document.getElementById('range-frequency').addEventListener('input', function() {
+            var min = oscillator.frequency.minValue || 0;
+            var max = oscillator.frequency.maxValue || 100000;
+
+            if ((this.valueAsNumber >= min) && (this.valueAsNumber <= max)) {
+                oscillator.frequency.value = frequency = this.valueAsNumber;
+                document.getElementById('output-frequency').textContent = this.value;
+                displayProperties(oscillator.frequency, 'oscillatornode-frequency-properties', 'frequency (AudioParam) ');
+            }
+        }, false);
+
+        // Control detune
+        document.getElementById('range-detune').addEventListener('input', function() {
+            var min = oscillator.detune.minValue || -4800;
+            var max = oscillator.detune.maxValue ||  4800;
+
+            if ((this.valueAsNumber >= min) && (this.valueAsNumber <= max)) {
+                oscillator.detune.value = detune = this.valueAsNumber;
+                document.getElementById('output-detune').textContent = this.value;
+                displayProperties(oscillator.detune, 'oscillatornode-detune-properties', 'detune (AudioParam) ');
+            }
+        }, false);
+    };
+
+    if ((document.readyState === 'interactive') || (document.readyState === 'complete')) {
+        onDOMContentLoaded();
+    } else {
+        document.addEventListener('DOMContentLoaded', onDOMContentLoaded, true);
+    }
+
+})();
+
+</script>
+</head>
+
+<body>
+    <div id="page">
+        <div>
+            <fieldset>
+                <dl>
+                    <dt>START / STOP</dt>
+                    <dd><button type="button"><span class="icon-start"></span></button></dd>
+                    <dt><label for="range-volume">VOLUME : <span id="output-volume">1</span></label></dt>
+                    <dd><input type="range" id="range-volume" value="1" min="0" max="1" step="0.05" /></dd>
+                    <dt>WAVE TYPE</dt>
+                    <dd>
+                        <form id="form-wave-type" name="form-wave-type">
+                            <label><input type="radio" name="radio-wave-type" value="sine" checked />SINE</label>
+                            <label><input type="radio" name="radio-wave-type" value="square"       />SQUARE</label>
+                            <label><input type="radio" name="radio-wave-type" value="sawtooth"     />SAW</label>
+                            <label><input type="radio" name="radio-wave-type" value="triangle"     />TRIANGLE</label>
+                        </form>
+                    </dd>
+                    <dt><label for="range-frequency">FREQUENCY : <span id="output-frequency">440</span> Hz</label></dt>
+                    <dd><input type="range" id="range-frequency" value="440" min="20" max="8000" step="1" /></dd>
+                    <dt><label for="range-detune">DETUNE : <span id="output-detune">0</span> cent</label></dt>
+                    <dd><input type="range" id="range-detune" value="0" min="-100" max="100" step="1" /></dd>
+                </dl>
+            </fieldset>
+        </div>
+        <div>
+            <dl id="display-properties-container" class="list-marker">
+                <dt><a href="#oscillatornode-properties" class="display-properties">OscillatorNode</a></dt>
+                <dd>
+                    <table id="oscillatornode-properties">
+                        <caption>OscillatorNode</caption>
+                        <thead>
+                            <tr><th scope="col">Property</th><th scope="col">Value</th><th scope="col">hasOwnProperty</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </dd>
+                <dt><a href="#oscillatornode-frequency-properties" class="display-properties">frequency (AudioParam) </a></dt>
+                <dd>
+                    <table id="oscillatornode-frequency-properties">
+                        <caption>frequency (AudioParam) </caption>
+                        <thead>
+                            <tr><th scope="col">Property</th><th scope="col">Value</th><th scope="col">hasOwnProperty</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </dd>
+                <dt><a href="#oscillatornode-detune-properties" class="display-properties">detune (AudioParam) </a></dt>
+                <dd>
+                    <table id="oscillatornode-detune-properties">
+                        <caption>detune (AudioParam) </caption>
+                        <thead>
+                            <tr><th scope="col">Property</th><th scope="col">Value</th><th scope="col">hasOwnProperty</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </dd>
+            </dl>
+        </div>
+    </div>
+    <!-- /#page -->
+</body>
+</html>

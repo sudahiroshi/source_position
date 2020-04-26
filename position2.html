@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head lang="ja">
+    <meta charset="UTF-8">
+    <title>音像体験ページ</title>
+    <script type="text/javascript" src="canvas.js"></script>
+    <!--15/12/07 17:31 キーボード反映-->
+    <!--<script type="text/javascript" src="keybord.js"></script>-->
+    <!--<link rel="stylesheet" type="text/css" href="tatami.css" />-->
+    <script>
+        var panner;
+        var osc;
+        function func( button, frequency, type, pos, vel ) {
+            var button1 = document.getElementById( button );
+            button1.addEventListener('click', function () {
+                var audioContext = new AudioContext();
+                osc = audioContext.createOscillator();
+                osc.frequency = frequency;
+                osc.type = type;
+                var dest = audioContext.destination;
+                panner = audioContext.createPanner();
+                panner.panningModel = "HRTF";
+                panner.setPosition(pos[0], pos[1], pos[2]);
+                panner.setOrientation( 1, 0, 0 );
+                panner.setVelocity(vel[0], vel[1], vel[2]);
+                osc.connect(panner);
+                panner.connect(dest);
+
+                osc.start();
+                func_f( "f1", [-1.0,0.0,0.0] );
+                func_f( "f2", [0.0,1.0,0.0] );
+                func_f( "f3", [1.0,0.0,0.0] );
+                func_f( "f4", [0.0,-1.0,0.0] );
+            });
+        }
+        /*停止ボタン追加 12/01/01:20 */
+        function func_stop(){
+              osc.stop();
+              audioContext = null;
+              osc.disconnect();
+              panner.disconnect();
+        }
+        /*音像設置ボタンv2追加 12/01/04:48 */
+        function func_build3(xy){
+          /*X軸*/
+          //console.log(xy);
+          $true_mouseX = (xy[0]-300) / 30;
+          $true_mouseX2 = Math.floor($true_mouseX*10)/10;
+          /*Y軸*/
+          $true_mouseY = (150 - xy[1]) / 15;
+          $true_mouseY2 = Math.floor($true_mouseY*10)/10;
+          /*Z軸は二次元じゃ表現できないため0.0で設定*/
+          panner.setPosition($true_mouseX2, $true_mouseY2, 0.0);
+        }
+        /*終わり*/
+
+/*
+        function func_c( button, frequency, type ) {
+            var button1 = document.getElementById( button );
+            button1.addEventListener('click', function () {
+                var audioContext = new AudioContext();
+
+                var vco0 = audioContext.createOscillator();
+                var vco1 = audioContext.createOscillator();
+                var lfo = audioContext.createOscillator();
+                var vcf = audioContext.createBiquadFilter();
+                var dest = audioContext.destination;
+
+                vco0.connect( vcf );
+                vco1.connect( vcf );
+                lfo.connect( vco0.frequency );
+                lfo.connect( vco1.frequency );
+                lfo.connect( vcf.detune );
+                vcf.connect( dest );
+
+                vco0.type="sawtooth";
+                vco1.detune.value=-35;
+                lfo.frequency.value=2;
+                vcf.frequency.value=10000;
+
+                vco0.start();
+                vco1.start();
+                lfo.start();
+
+                vco0.frequency.value = 440;
+                vco1.frequency.value = 440;
+
+                setTimeout(function () {
+                    vco0.stop();
+                    vco1.stop();
+                }, 3000);
+            });
+        }
+*/
+        var play = function ( frequency, type, adsr_t, adsr_v ) {
+            var audioContext = new AudioContext();
+            var osc = audioContext.createOscillator();
+            osc.frequency = frequency;
+            osc.type = type;
+            var dest = audioContext.destination;
+
+            var gainNode = audioContext.createGain();
+            gainNode.gain.setValueAtTime( 0, play.count );
+            gainNode.gain.linearRampToValueAtTime( adsr_v[0], play.count + adsr_t[0] );
+            gainNode.gain.linearRampToValueAtTime( adsr_v[1], play.count + adsr_t[1] );
+            gainNode.gain.linearRampToValueAtTime( adsr_v[2], play.count + adsr_t[2] );
+            gainNode.gain.linearRampToValueAtTime( adsr_v[3], play.count + adsr_t[3] );
+
+            osc.connect(gainNode);
+            gainNode.connect(dest);
+
+            osc.start();
+            play.count = play.count + 0.8;
+            setTimeout(function () {
+                osc.stop();
+                audioContext = null;
+                osc.disconnect();
+            }, 3000);
+            return play;
+        };
+/*
+        function func_d( button, frequency, type, adsr_v, adsr_t ) {
+            var button1 = document.getElementById( button );
+            button1.addEventListener('click', function () {
+                play.count = 0;
+                play( frequency, type, adsr_v, adsr_t );
+            });
+        }
+*/
+        function BufferLoader( context, urlList, callback ) {
+            this.context = context;
+            this.urlList = urlList;
+            this.onload = callback;
+        }
+        BufferLoader.prototype.loadBuffer = function( url ) {
+            var request = new XMLHttpRequest();
+            request.open( "GET", url, true );
+            request.responseType = "arraybuffer";
+            request.send();
+
+            var loader = this;
+            request.addEventListener( 'load', function(ev) {
+                loader.context.decodeAudioData(
+                        request.response,
+                        function (buffer) {
+                            if (!buffer) {
+                                alert('error decoding file data:' + url);
+                                return;
+                            }
+                            loader.onload(buffer);
+                        },
+                        function (error) {
+                            console.error('decodeAudioData error', error);
+                        }
+                );
+            });
+        }
+        BufferLoader.prototype.load = function() {
+            this.loadBuffer( this.url );
+        }
+/*
+        function func_e( button, filename ) {
+            var audioContext = new AudioContext();
+            var convolver = audioContext.createConvolver();
+            var osc = audioContext.createOscillator();
+            osc.frequency = 440;
+            osc.type = "sine";
+            var dest = audioContext.destination;
+
+            var gainNode = audioContext.createGain();
+            gainNode.gain.setValueAtTime( 0, 0 );
+            gainNode.gain.linearRampToValueAtTime( 1.0, 0.01 );
+            gainNode.gain.linearRampToValueAtTime( 0.7, 0.2 );
+            gainNode.gain.linearRampToValueAtTime( 0.4, 0.4 );
+            gainNode.gain.linearRampToValueAtTime( 0.0, 0.8 );
+
+
+            var loader = new BufferLoader( audioContext, filename, function( foo ) {
+                convolver.buffer = foo;
+                osc.connect( convolver );
+                //gainNode.connect( dest );
+                //               gainNode.connect( convolver );
+                convolver.connect( dest );
+                //osc.connect( dest );
+            });
+            loader.loadBuffer( filename );
+            var button1 = document.getElementById( button );
+            button1.addEventListener('click', function () {
+                osc.start();
+                setTimeout(function () {
+                    osc.stop();
+                    audioContext = null;
+                    osc.disconnect();
+                }, 3000);
+            });
+
+        }
+*/
+        function func_f( button, pos ) {
+            var button1 = document.getElementById( button );
+            button1.addEventListener('click', function ( ev ) {
+                panner.setPosition(pos[0], pos[1], pos[2]);
+            });
+        }
+        window.addEventListener('load', function(){
+            func( "a1", 440, "sine", [0,0,0],[1,0,0] );
+            func( "a2", 440, "square", [0,0,0],[1,0,0]);
+            func( "a3", 440, "sawtooth", [0,0,0],[1,0,0]);
+            func( "a4", 440, "triangle", [0,0,0],[1,0,0]);
+
+            //func( "b1", 440, "sine", [10,0,0],[-1,0,0] );
+            //func( "b2", 440, "sine", [-10,0,0],[1,0,0]);
+            //func( "b3", 440, "sine", [1,0,0],[0,0,0]);
+            //func( "b4", 440, "sine", [-1,0,0],[0,0,0]);
+
+            //func_c( "c1", 440, "sine" );
+            //func_c( "c2", 440, "sine" );
+            //func_c( "c3", 440, "sine" );
+            //func_c( "c4", 440, "sine" );
+
+            //func_d( "d1", 440, "sine", [1.0, 0.7, 0.4, 0.0], [0.01, 0.2, 0.4, 0.8] );
+            //func_d( "d2", 440, "sine", [1.0, 0.7, 0.4, 0.0], [0.01, 0.4, 0.8, 1.6] );
+            //func_d( "d3", 440, "sine", [1.0, 0.7, 0.0, 0.0], [0.01, 0.1, 0.01, 0.01] );
+            //func_d( "d4", 440, "sine", [0.5, 0.5, 0.4, 0.0], [0.01, 0.2, 0.4, 0.8] );
+
+            //func_e( "e1", "telephone.wav" );
+
+
+        });
+    </script>
+    <script>
+    var img = new Image();
+    img.src = "human.png";
+    //img.align = "middle";
+    document.addEventListener( 'DOMContentLoaded', function(){
+      canvas = document.getElementById("hoge");
+      ctx = canvas.getContext('2d');
+
+
+      //キャンバスサイズ
+      canvas.width = 600;
+      canvas.height = 300;
+      //キャンバス色
+      canvas.style.background = "#eee";
+
+      //各イベント発生時の処理
+      canvas.addEventListener("mousemove", mmove);
+      canvas.addEventListener("mousedown", mdwn);
+      canvas.addEventListener("mouseup", mup);
+      canvas.addEventListener("touchmove", mmove);
+      canvas.addEventListener("touchstart", mdwn);
+      canvas.addEventListener("touchend", mup);
+    });
+    function initCanvas(){
+      //キャンバスをリフレッシュする
+      canvas.width = canvas.width;
+      canvas.height = canvas.height;
+    }
+    function drawRect(x, y, w, h){
+      //キャンバス初期化
+      initCanvas();
+      //四角形を描く
+      ctx.rect(x, y, w, h);
+      //線を描画する
+      ctx.stroke();
+    }
+    function mmove(e){
+      e.preventDefault();
+      var xy = getXY(e);
+      ctx.drawImage(img,273,120,50,100);
+      func_build3(xy);//カーソルの位置に合わせて音像の設置
+    }
+    function mdwn(e){
+      e.preventDefault();
+      //現在のパスをリセットして開始する
+      ctx.beginPath();
+    }
+    function mup(e){
+      e.preventDefault();
+      //最終座標と開始座標を結んでパスを閉じる
+      ctx.closePath();
+    }
+
+    //X,Yの位置を取得する
+    function getXY(e){
+      //canvas自体のleft,topを引いたcanvas内座標を配列[x,y]で返す
+      if(e.touches)e = e.touches[0];//for モバイル
+      var rect = e.target.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      return [x, y];
+    }
+    </script>
+</head>
+
+
+<body>
+  <center>
+    <!-- 15/12/01/04:02-->
+    <h1>音場シミュレータ</h1>
+    <canvas id="hoge" class="canavas"></canvas>
+    <br>
+    <button type="rest" id="a1">sin</button>
+    <button type="rest" id="a2">kukei</button>
+    <button type="rest" id="a3">nokogiri</button>
+    <button type="rest" id="a4">sankaku</button>
+    <br>
+    <button type="rest" id="stop" onclick="func_stop()">stop</button>
+  <br>
+  <div id="result"></div>
+    <!-- 15/12/01/18:30-->
+    <br>
+    <a href="tatami.html">畳み込み演算の方へ</a>
+  </center>
+</body>
+</html>
